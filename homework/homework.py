@@ -3,7 +3,9 @@ Escriba el codigo que ejecute la accion solicitada.
 """
 
 # pylint: disable=import-outside-toplevel
-
+import os
+import pandas as pd
+import zipfile
 
 def clean_campaign_data():
     """
@@ -49,6 +51,49 @@ def clean_campaign_data():
 
 
     """
+
+    input_directory = 'files/input'
+    output_directory = 'files/output'
+
+    files = [f for f in os.listdir(input_directory) if f.endswith('.zip')]
+    dfs = []
+
+    for file in files:
+        zip_path = os.path.join(input_directory, file)
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            csv_file = zip_ref.namelist()[0] 
+            with zip_ref.open(csv_file) as f:
+                df = pd.read_csv(f)
+                dfs.append(df)
+
+
+    dataset = pd.concat(dfs, ignore_index=True)
+
+    dataset['job'] = dataset['job'].str.replace('.', '').str.replace('-', '_')
+    dataset['education'] = dataset['education'].str.replace('.', '_')
+    dataset['education'] = dataset['education'].apply(lambda x: pd.NA if x == 'unknown' else x)
+    dataset['credit_default'] = dataset['credit_default'].apply(lambda x: 1 if x == 'yes' else 0)
+    dataset['mortgage'] = dataset['mortgage'].apply(lambda x: 1 if x == 'yes' else 0)
+    dataset['previous_outcome'] = dataset['previous_outcome'].apply(lambda x: 1 if x == 'success' else 0)
+    dataset['campaign_outcome'] = dataset['campaign_outcome'].apply(lambda x: 1 if x == 'yes' else 0)
+
+
+    dataset['month'] = pd.to_datetime(dataset['month'], format='%b').dt.month
+    dataset['last_contact_date'] = pd.to_datetime({'year': 2022, 'month': dataset['month'], 'day': dataset['day']})
+
+
+    client_df = dataset[['client_id', 'age', 'job', 'marital', 'education', 'credit_default', 'mortgage']]
+    campaign_df = dataset[['client_id', 'number_contacts', 'contact_duration', 'previous_campaign_contacts', 
+                           'previous_outcome', 'campaign_outcome', 'last_contact_date']]
+    economics_df = dataset[['client_id', 'cons_price_idx', 'euribor_three_months']]
+
+
+    os.makedirs(output_directory, exist_ok=True)
+
+
+    client_df.to_csv(os.path.join(output_directory, 'client.csv'), index=False)
+    campaign_df.to_csv(os.path.join(output_directory, 'campaign.csv'), index=False)
+    economics_df.to_csv(os.path.join(output_directory, 'economics.csv'), index=False)
 
     return
 
